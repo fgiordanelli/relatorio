@@ -389,6 +389,31 @@ def load_statement_use_destino_only(file, sep_input=None, encoding_input=None, d
             ""
         )
 
+        # Flag Funcionários: Lista de funcionários conhecidos
+        funcionarios_patterns = [
+            ("patrick", "andrews"),
+            ("maressa", "coelho"),
+            ("vamberto", "barbosa"),
+            ("alessandro", "silva", "barbosa"),
+            ("joaldo", "gomes")
+        ]
+        
+        funcionario_mask = pd.Series([False] * len(out), dtype=bool)
+        for pattern in funcionarios_patterns:
+            if len(pattern) == 2:
+                funcionario_mask |= (
+                    out["_dest_norm"].str.contains(pattern[0], na=False) & 
+                    out["_dest_norm"].str.contains(pattern[1], na=False)
+                )
+            elif len(pattern) == 3:
+                funcionario_mask |= (
+                    out["_dest_norm"].str.contains(pattern[0], na=False) & 
+                    out["_dest_norm"].str.contains(pattern[1], na=False) &
+                    out["_dest_norm"].str.contains(pattern[2], na=False)
+                )
+        
+        out["FuncionarioFlag"] = np.where(funcionario_mask, "Funcionário", "")
+
         # Flag de Estorno: detectar transações com mesmo valor absoluto, sinais opostos, em janela temporal próxima
         out = out.sort_values("date").reset_index(drop=True)
         out["EstornoFlag"] = ""
@@ -535,6 +560,10 @@ df_cat.loc[mask_positive_not_special, "Categoria"] = "Entradas"
 mask_investimento = df_cat["InvestimentoEmpresaFlag"] == "Investimento Empresa"
 df_cat.loc[mask_investimento, "Categoria"] = "Investimento Empresa"
 
+# Regra para Funcionários: Pagamentos para funcionários conhecidos
+mask_funcionarios = df_cat["FuncionarioFlag"] == "Funcionário"
+df_cat.loc[mask_funcionarios, "Categoria"] = "Funcionários"
+
 # (Removido mapeamento antigo de Reserva Stone por Destino)
 # df_cat.loc[mask_reserva_stone, "Categoria"] = "Reserva Stone"
 
@@ -574,6 +603,13 @@ if not investimento_df.empty:
     total_investimento = investimento_df["amount"].sum()
     num_investimento = len(investimento_df)
     st.caption(f"💰 Investimento Empresa (Fabrício Giordanelli): {format_currency_br(total_investimento)} (n={num_investimento}) • Excluído dos cálculos de entrada/vendas")
+
+# Funcionários
+funcionarios_df = df_cat.loc[df_cat["FuncionarioFlag"] == "Funcionário"]
+if not funcionarios_df.empty:
+    total_funcionarios = funcionarios_df["amount"].sum()
+    num_funcionarios = len(funcionarios_df)
+    st.caption(f"👥 Funcionários: {format_currency_br(total_funcionarios)} (n={num_funcionarios}) • Patrick, Maressa, Vamberto, Alessandro, Joaldo")
 
 # -------------------- Relatório mensal (Prévia) --------------------
 # (apenas cálculo; a renderização virá depois do Resumo mensal)
