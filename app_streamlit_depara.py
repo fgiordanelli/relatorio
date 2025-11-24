@@ -689,8 +689,12 @@ monthly_summary = monthly_summary.merge(cmv_by_month, on="month", how="left")
 monthly_summary["CMV"] = monthly_summary["CMV"].fillna(0.0)
 
 # Gastos com funcionários por mês
+# Inclui tokens antigos + funcionários detectados pela flag automática
 func_tokens = ["cesar", "raimundo", "cris", "joaldo", "marresa"]
-func_mask = monthly_df["_dest_norm"].str.contains("|".join(func_tokens), regex=True, na=False)
+func_mask_tokens = monthly_df["_dest_norm"].str.contains("|".join(func_tokens), regex=True, na=False)
+func_mask_flag = monthly_df["FuncionarioFlag"] == "Funcionário"
+func_mask = func_mask_tokens | func_mask_flag
+
 func_spend_m = (
     monthly_df.loc[func_mask & (monthly_df["amount"] < 0)]
               .assign(_spend=lambda d: d["amount"].abs())
