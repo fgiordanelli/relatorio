@@ -380,6 +380,15 @@ def load_statement_use_destino_only(file, sep_input=None, encoding_input=None, d
         ifood_norm = normalize_text("ZOOP TECNOLOGIA & INSTITUICAO DE PAGAMENTO S.A.")
         out["IfoodFlag"] = np.where(out["_origem_inst_norm"] == ifood_norm, "IFOOD", "")
 
+        # Flag Investimento Empresa: PIX do Fabrício Giordanelli
+        fabricio_norm = normalize_text("Fabrício Giordanelli")
+        out["InvestimentoEmpresaFlag"] = np.where(
+            out["_origem_norm"].str.contains("fabricio", na=False) & 
+            out["_origem_norm"].str.contains("giordanelli", na=False),
+            "Investimento Empresa",
+            ""
+        )
+
         # Flag de Estorno: detectar transações com mesmo valor absoluto, sinais opostos, em janela temporal próxima
         out = out.sort_values("date").reset_index(drop=True)
         out["EstornoFlag"] = ""
@@ -522,14 +531,19 @@ special_payee_norm = normalize_text("RIO QUALITY COMÉRCIO DE ALIMENTOS S/A")
 mask_positive_not_special = (df_cat["amount"] > 0) & (~df_cat["_dest_norm"].str.contains(special_payee_norm, regex=False))
 df_cat.loc[mask_positive_not_special, "Categoria"] = "Entradas"
 
+# Regra para Investimento Empresa: PIX do Fabrício Giordanelli
+mask_investimento = df_cat["InvestimentoEmpresaFlag"] == "Investimento Empresa"
+df_cat.loc[mask_investimento, "Categoria"] = "Investimento Empresa"
+
 # (Removido mapeamento antigo de Reserva Stone por Destino)
 # df_cat.loc[mask_reserva_stone, "Categoria"] = "Reserva Stone"
 
 # ---- KPIs globais (primeiro bloco do relatório) ----
-# Excluir linhas com flag de Reserva Stone e Estornos das entradas/saídas
+# Excluir linhas com flag de Reserva Stone, Estornos e Investimento Empresa das entradas/saídas
 no_flag = df_cat.loc[
     ~df_cat["ReservaStoneFlag"].isin(["Saiu", "Entrou"]) &
-    ~df_cat["EstornoFlag"].isin(["Original", "Estorno"])
+    ~df_cat["EstornoFlag"].isin(["Original", "Estorno"]) &
+    (df_cat["InvestimentoEmpresaFlag"] != "Investimento Empresa")
 ]
 flagged = df_cat.loc[df_cat["ReservaStoneFlag"].isin(["Saiu", "Entrou"])]
 
@@ -553,6 +567,13 @@ c4.metric("Reserva Stone", format_currency_br(stone_total))
 num_in = int((flagged["ReservaStoneFlag"] == "Entrou").sum())
 num_out = int((flagged["ReservaStoneFlag"] == "Saiu").sum())
 st.caption(f"Reserva Stone detalhado — Entrou: {format_currency_br(entrou_signed)} (n={num_in}) • Saiu: {format_currency_br(saiu_signed)} (n={num_out}) • Líquido: {format_currency_br(stone_total)}")
+
+# Investimento Empresa
+investimento_df = df_cat.loc[df_cat["InvestimentoEmpresaFlag"] == "Investimento Empresa"]
+if not investimento_df.empty:
+    total_investimento = investimento_df["amount"].sum()
+    num_investimento = len(investimento_df)
+    st.caption(f"💰 Investimento Empresa (Fabrício Giordanelli): {format_currency_br(total_investimento)} (n={num_investimento}) • Excluído dos cálculos de entrada/vendas")
 
 # -------------------- Relatório mensal (Prévia) --------------------
 # (apenas cálculo; a renderização virá depois do Resumo mensal)
