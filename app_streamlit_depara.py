@@ -166,13 +166,14 @@ def load_depara(depara_file) -> list[dict]:
         para_col = df.columns[1]
 
     # expandir termos múltiplos separados por , ; / |
+    # SEM NORMALIZAR - match exato literal
     rules = []
     for _, row in df.iterrows():
-        raw_de = str(row[de_col])
+        raw_de = str(row[de_col]).strip()
         category = str(row[para_col]).strip()
-        if not category:
+        if not category or not raw_de:
             continue
-        keywords = [normalize_text(k) for k in re.split(r"[;,/|]", raw_de) if str(k).strip()]
+        keywords = [k.strip() for k in re.split(r"[;,/|]", raw_de) if k.strip()]
         if not keywords:
             continue
         rules.append({"keywords": keywords, "category": category})
@@ -192,15 +193,15 @@ def load_depara(depara_file) -> list[dict]:
 
 
 def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_category="Outros"):
-    """Aplica regras de de→para sobre a coluna normalizada do Destino com MATCH EXATO."""
+    """Aplica regras de de→para sobre a coluna Destino ORIGINAL com MATCH EXATO LITERAL (sem normalização)."""
     cats = []
     matched_keywords = []
-    for desc in df_dest["_dest_norm"]:
+    for desc in df_dest["Destino"]:
         found = None
         matched_kw = ""
         for rule in rules:
             for kw in rule["keywords"]:
-                # MATCH EXATO: destino normalizado deve ser EXATAMENTE igual ao nome normalizado
+                # MATCH EXATO LITERAL: sem normalização, exatamente como está
                 if kw and kw == desc:
                     found = rule["category"]
                     matched_kw = kw
