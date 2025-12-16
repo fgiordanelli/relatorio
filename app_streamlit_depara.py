@@ -194,18 +194,23 @@ def load_depara(depara_file) -> list[dict]:
 def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_category="Outros"):
     """Aplica regras de de→para sobre a coluna normalizada do Destino."""
     cats = []
+    matched_keywords = []
     for desc in df_dest["_dest_norm"]:
         found = None
+        matched_kw = ""
         for rule in rules:
             for kw in rule["keywords"]:
                 if kw and kw in desc:
                     found = rule["category"]
+                    matched_kw = kw
                     break
             if found:
                 break
         cats.append(found if found else default_category)
+        matched_keywords.append(matched_kw if matched_kw else "")
     df = df_dest.copy()
     df["Categoria"] = cats
+    df["_matched_keyword"] = matched_keywords
     return df
 
 
@@ -396,17 +401,12 @@ def load_statement_use_destino_only(file, sep_input=None, encoding_input=None, d
             ("vamberto", "barbosa"),
             ("alessandro", "silva", "barbosa"),
             ("joaldo", "gomes"),
-            ("antonio", "orlando", "sousa"),
-            ("cristina", "paula", "pereira"),
-            ("cesar", "nascimento"),
-            ("raimundo",)
+            ("antonio", "orlando", "sousa")
         ]
         
         funcionario_mask = pd.Series([False] * len(out), dtype=bool)
         for pattern in funcionarios_patterns:
-            if len(pattern) == 1:
-                funcionario_mask |= out["_dest_norm"].str.contains(pattern[0], na=False)
-            elif len(pattern) == 2:
+            if len(pattern) == 2:
                 funcionario_mask |= (
                     out["_dest_norm"].str.contains(pattern[0], na=False) & 
                     out["_dest_norm"].str.contains(pattern[1], na=False)
@@ -615,7 +615,7 @@ funcionarios_df = df_cat.loc[df_cat["FuncionarioFlag"] == "Funcionário"]
 if not funcionarios_df.empty:
     total_funcionarios = funcionarios_df["amount"].sum()
     num_funcionarios = len(funcionarios_df)
-    st.caption(f"👥 Funcionários: {format_currency_br(total_funcionarios)} (n={num_funcionarios}) • Patrick, Maressa, Vamberto, Alessandro, Joaldo, Antonio Orlando, Cristina, Cesar, Raimundo")
+    st.caption(f"👥 Funcionários: {format_currency_br(total_funcionarios)} (n={num_funcionarios}) • Patrick, Maressa, Vamberto, Alessandro, Joaldo, Antonio Orlando")
 
 # -------------------- Relatório mensal (Prévia) --------------------
 # (apenas cálculo; a renderização virá depois do Resumo mensal)
@@ -695,8 +695,11 @@ monthly_summary = monthly_summary.merge(cmv_by_month, on="month", how="left")
 monthly_summary["CMV"] = monthly_summary["CMV"].fillna(0.0)
 
 # Gastos com funcionários por mês
-# Todos os funcionários agora são detectados pela flag automática
-func_mask = monthly_df["FuncionarioFlag"] == "Funcionário"
+# Inclui tokens antigos + funcionários detectados pela flag automática
+func_tokens = ["cesar", "raimundo", "cris", "joaldo", "marresa"]
+func_mask_tokens = monthly_df["_dest_norm"].str.contains("|".join(func_tokens), regex=True, na=False)
+func_mask_flag = monthly_df["FuncionarioFlag"] == "Funcionário"
+func_mask = func_mask_tokens | func_mask_flag
 
 func_spend_m = (
     monthly_df.loc[func_mask & (monthly_df["amount"] < 0)]
@@ -861,6 +864,19 @@ chart = alt.Chart(vendas_por_semana_sorted).mark_line(point=True, color="#1f77b4
 )
 
 st.altair_chart(chart, use_container_width=True)
+
+# -------------------- Debug: Categoria "salame, pepporoni, parmesão" --------------------
+st.divider()
+st.subheader("🔍 Debug: Transações categorizadas como 'salame, pepporoni, parmesão'")
+debug_cat = "salame, pepporoni, parmesão"
+debug_df = df_cat.loc[df_cat["Categoria"] == debug_cat].copy()
+if not debug_df.empty:
+    debug_display = debug_df[["date", "Destino", "amount", "_matched_keyword"]].copy()
+    debug_display.columns = ["Data", "Destino", "Valor", "Palavra-chave usada"]
+    st.caption(f"Total de transações: {len(debug_df)} | Valor total: {format_currency_br(debug_df['amount'].sum())}")
+    render_centered_table(format_currency_columns(debug_display, ["Valor"]))
+else:
+    st.info("Nenhuma transação categorizada como 'salame, pepporoni, parmesão'")
 
 # -------------------- Estornos Detectados --------------------
 st.divider()
