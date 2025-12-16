@@ -674,22 +674,34 @@ monthly_summary["Saldo"] = monthly_summary.apply(
 )
 
 # CMV mensal por mês (alinhado por merge) baseado em monthly_df
-cat_norm_series = monthly_df["Categoria"].map(normalize_text)
+# Regra solicitada: somar APENAS categorias exatas do de→para (lista_corrigida.csv)
+# + incluir também fornecedores específicos pelo nome do Destino.
+cmv_categories = {
+    "mercado",
+    "farinha, molho, azeite",
+    "parma, búfala",
+    "gelo",
+}
+cmv_suppliers = {
+    "Onfood Intermediacao de Negocios LTDA",
+    "RIO QUALITY COMERCIO DE ALIMENTOS S/A",
+}
+
+def _clean_key_end(s: str) -> str:
+    # limpeza mínima (igual ao match do de→para): trim e remove pontuação final comum
+    return str(s).strip().rstrip(".,;").strip()
+
+dest_clean = monthly_df["Destino"].map(_clean_key_end)
 cmv_mask_all = (
-    cat_norm_series.str.contains("mercado", regex=False, na=False) |
-    cat_norm_series.str.contains("parma", regex=False, na=False) |
-    cat_norm_series.str.contains("bufala", regex=False, na=False) |
-    cat_norm_series.str.contains("salame", regex=False, na=False) |
-    cat_norm_series.str.contains("pepporoni", regex=False, na=False) |
-    cat_norm_series.str.contains("parmesao", regex=False, na=False) |
-    cat_norm_series.str.contains("farinha", regex=False, na=False) |
-    cat_norm_series.str.contains("molho", regex=False, na=False) |
-    cat_norm_series.str.contains("azeite", regex=False, na=False) |
-    cat_norm_series.str.contains("gelo", regex=False, na=False)
+    monthly_df["Categoria"].isin(cmv_categories)
+    | dest_clean.isin({ _clean_key_end(x) for x in cmv_suppliers })
 )
+
+# CMV como custo positivo: soma do valor absoluto das saídas selecionadas
 cmv_by_month = (
-    monthly_df.loc[cmv_mask_all]
-              .groupby("month")["amount"].sum()
+    monthly_df.loc[cmv_mask_all & (monthly_df["amount"] < 0)]
+              .assign(_cmv=lambda d: d["amount"].abs())
+              .groupby("month")["_cmv"].sum()
               .reset_index(name="CMV")
 )
 monthly_summary = monthly_summary.merge(cmv_by_month, on="month", how="left")
@@ -731,6 +743,7 @@ monthly_summary["Gorjeta"] = monthly_summary["Vendas"] * 0.91 * 0.10
 monthly_summary["Entrada líquida"] = monthly_summary["Vendas"] + monthly_summary["Entradas IFOOD"] - monthly_summary["Gorjeta"]
 
 # %CMV = CMV / Entrada líquida (evita divisão por zero)
+# (CMV já é positivo como custo)
 monthly_summary["%CMV"] = monthly_summary.apply(lambda r: (r["CMV"] / r["Entrada líquida"]) if r["Entrada líquida"] != 0 else 0.0, axis=1)
 
 # Func = Total gasto com funcionários - Gorjeta
