@@ -192,7 +192,7 @@ def load_depara(depara_file) -> list[dict]:
 
 
 def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_category="Outros"):
-    """Aplica regras de de→para sobre a coluna normalizada do Destino."""
+    """Aplica regras de de→para sobre a coluna normalizada do Destino com MATCH EXATO."""
     cats = []
     matched_keywords = []
     for desc in df_dest["_dest_norm"]:
@@ -200,8 +200,8 @@ def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_ca
         matched_kw = ""
         for rule in rules:
             for kw in rule["keywords"]:
-                # Match por substring, mas apenas se a palavra-chave tiver 3+ caracteres
-                if kw and len(kw) >= 3 and kw in desc:
+                # MATCH EXATO: destino normalizado deve ser EXATAMENTE igual ao nome normalizado
+                if kw and kw == desc:
                     found = rule["category"]
                     matched_kw = kw
                     break
