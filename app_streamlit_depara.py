@@ -200,8 +200,8 @@ def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_ca
         matched_kw = ""
         for rule in rules:
             for kw in rule["keywords"]:
-                # Match exato: o destino normalizado tem que ser EXATAMENTE igual à palavra-chave
-                if kw and kw == desc:
+                # Match por substring, mas apenas se a palavra-chave tiver 3+ caracteres
+                if kw and len(kw) >= 3 and kw in desc:
                     found = rule["category"]
                     matched_kw = kw
                     break
