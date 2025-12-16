@@ -395,7 +395,8 @@ def load_statement_use_destino_only(file, sep_input=None, encoding_input=None, d
             ("maressa", "coelho"),
             ("vamberto", "barbosa"),
             ("alessandro", "silva", "barbosa"),
-            ("joaldo", "gomes")
+            ("joaldo", "gomes"),
+            ("antonio", "orlando", "sousa")
         ]
         
         funcionario_mask = pd.Series([False] * len(out), dtype=bool)
@@ -609,7 +610,7 @@ funcionarios_df = df_cat.loc[df_cat["FuncionarioFlag"] == "Funcionário"]
 if not funcionarios_df.empty:
     total_funcionarios = funcionarios_df["amount"].sum()
     num_funcionarios = len(funcionarios_df)
-    st.caption(f"👥 Funcionários: {format_currency_br(total_funcionarios)} (n={num_funcionarios}) • Patrick, Maressa, Vamberto, Alessandro, Joaldo")
+    st.caption(f"👥 Funcionários: {format_currency_br(total_funcionarios)} (n={num_funcionarios}) • Patrick, Maressa, Vamberto, Alessandro, Joaldo, Antonio Orlando")
 
 # -------------------- Relatório mensal (Prévia) --------------------
 # (apenas cálculo; a renderização virá depois do Resumo mensal)
