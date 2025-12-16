@@ -173,6 +173,8 @@ def load_depara(depara_file) -> list[dict]:
         if not category:
             continue
         keywords = [normalize_text(k) for k in re.split(r"[;,/|]", raw_de) if str(k).strip()]
+        # Filtrar palavras-chave muito curtas (menos de 3 caracteres) para evitar matches incorretos
+        keywords = [kw for kw in keywords if len(kw) >= 3]
         if not keywords:
             continue
         rules.append({"keywords": keywords, "category": category})
