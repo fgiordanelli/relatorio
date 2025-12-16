@@ -173,8 +173,6 @@ def load_depara(depara_file) -> list[dict]:
         if not category:
             continue
         keywords = [normalize_text(k) for k in re.split(r"[;,/|]", raw_de) if str(k).strip()]
-        # Filtrar palavras-chave muito curtas (menos de 3 caracteres) para evitar matches incorretos
-        keywords = [kw for kw in keywords if len(kw) >= 3]
         if not keywords:
             continue
         rules.append({"keywords": keywords, "category": category})
@@ -202,7 +200,8 @@ def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_ca
         matched_kw = ""
         for rule in rules:
             for kw in rule["keywords"]:
-                if kw and kw in desc:
+                # Match exato: o destino normalizado tem que ser EXATAMENTE igual à palavra-chave
+                if kw and kw == desc:
                     found = rule["category"]
                     matched_kw = kw
                     break
