@@ -165,51 +165,50 @@ def load_depara(depara_file) -> list[dict]:
     if not para_col:
         para_col = df.columns[1]
 
-    # expandir termos múltiplos separados por , ; / |
-    # SEM NORMALIZAR - match exato literal
-    rules = []
+    # IMPORTANTE:
+    # Este app usa `lista_corrigida.csv` com "Nome/Empresa" -> "Detalhamento".
+    # Aqui o match deve ser por NOME COMPLETO, então NÃO podemos dividir por "/"
+    # (ex.: "S/A" viraria "A" e causaria matches errados).
+    rules: list[dict] = []
     for _, row in df.iterrows():
         raw_de = str(row[de_col]).strip()
         category = str(row[para_col]).strip()
-        if not category or not raw_de:
+        if not raw_de or not category:
             continue
-        keywords = [k.strip() for k in re.split(r"[;,/|]", raw_de) if k.strip()]
-        if not keywords:
-            continue
-        rules.append({"keywords": keywords, "category": category})
+        rules.append({"keywords": [raw_de], "category": category})
 
-    # ordenar regras por comprimento do termo (prioriza match mais específico)
-    expanded = []
-    for r in rules:
-        for kw in r["keywords"]:
-            expanded.append((kw, r["category"]))
-    expanded.sort(key=lambda t: len(t[0]), reverse=True)  # mais longo primeiro
-
-    # volta para estrutura agrupada mantendo ordem
-    ordered_rules = []
-    for kw, cat in expanded:
-        ordered_rules.append({"keywords": [kw], "category": cat})
-    return ordered_rules
+    return rules
 
 
 def apply_depara_on_destino(df_dest: pd.DataFrame, rules: list[dict], default_category="Outros"):
-    """Aplica regras de de→para sobre a coluna Destino ORIGINAL com MATCH EXATO LITERAL (sem normalização)."""
-    cats = []
-    matched_keywords = []
-    for desc in df_dest["Destino"]:
-        found = None
-        matched_kw = ""
-        for rule in rules:
-            for kw in rule["keywords"]:
-                # MATCH EXATO LITERAL: sem normalização, exatamente como está
-                if kw and kw == desc:
-                    found = rule["category"]
-                    matched_kw = kw
-                    break
-            if found:
-                break
-        cats.append(found if found else default_category)
-        matched_keywords.append(matched_kw if matched_kw else "")
+    """Aplica regras de de→para com MATCH EXATO (literal), com limpeza leve de final de string."""
+
+    def _clean_key(s: str) -> str:
+        # Match literal, mas removendo apenas ruído comum do extrato:
+        # espaços e pontuação no final ('.' ',' ';')
+        return str(s).strip().rstrip(".,;").strip()
+
+    # Monta lookup (chave -> (categoria, keyword))
+    lookup: dict[str, tuple[str, str]] = {}
+    for rule in rules:
+        cat = rule.get("category", "")
+        for kw in rule.get("keywords", []) or []:
+            k = _clean_key(kw)
+            if k:
+                lookup[k] = (cat, kw)
+
+    cats: list[str] = []
+    matched_keywords: list[str] = []
+    for destino in df_dest["Destino"]:
+        key = _clean_key(destino)
+        hit = lookup.get(key)
+        if hit:
+            cats.append(hit[0])
+            matched_keywords.append(hit[1])
+        else:
+            cats.append(default_category)
+            matched_keywords.append("")
+
     df = df_dest.copy()
     df["Categoria"] = cats
     df["_matched_keyword"] = matched_keywords
